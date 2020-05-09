@@ -1,5 +1,5 @@
 resource "aws_security_group" "bastion" {
-  name_prefix = "${var.name}-bastion"
+  name_prefix = "${local.name}-bastion"
   vpc_id = aws_vpc.vpc.id
   description = "Allows SSH access to bastion host"
   ingress {
@@ -14,25 +14,33 @@ resource "aws_security_group" "bastion" {
     protocol = "icmp"
     to_port = -1
   }
+  // Allow outbound traffic
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 resource "aws_launch_configuration" "bastion" {
   lifecycle {
     create_before_destroy = true
   }
-  name_prefix = "${var.name}-bastion"
+  name_prefix = "${local.name}-bastion"
   associate_public_ip_address = true
-  image_id = "ami-01f08ef3e76b957e5" # AWS Linux public image
+  image_id = local.ami
   instance_type = "t2.small"
-  key_name = "MichaelKeyPair"
+  key_name = local.key-name
   security_groups = [aws_security_group.bastion.id]
+  user_data = file("scripts/bastionInit.sh")
 }
 
 resource "aws_autoscaling_group" "bastion" {
   lifecycle {
     create_before_destroy = true
   }
-  name_prefix = "${var.name}-bastion"
+  name_prefix = "${local.name}-bastion"
   max_size = 1
   min_size = 1
   launch_configuration = aws_launch_configuration.bastion.id
@@ -40,6 +48,6 @@ resource "aws_autoscaling_group" "bastion" {
   tag {
     key = "Name"
     propagate_at_launch = true
-    value = "BastionHost"
+    value = "${local.name}-bastion"
   }
 }

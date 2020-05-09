@@ -13,14 +13,14 @@ provider "aws" {
 resource "aws_vpc" "vpc" {
   cidr_block = "10.0.0.0/16"
   tags = {
-    Name = var.name
+    Name = local.name
   }
 }
 
 resource "aws_internet_gateway" "internet-gateway" {
   vpc_id = aws_vpc.vpc.id
   tags = {
-    Name = var.name
+    Name = local.name
   }
 }
 
@@ -30,19 +30,19 @@ data "aws_availability_zones" "available" {
 
 resource "aws_subnet" "public" {
   availability_zone = data.aws_availability_zones.available.names[0]
-  cidr_block = "10.0.0.0/24"
+  cidr_block = local.public-cidr
   vpc_id = aws_vpc.vpc.id
   tags = {
-    Name = "${var.name}-public"
+    Name = "${local.name}-public"
   }
 }
 
 resource "aws_subnet" "private" {
   availability_zone = data.aws_availability_zones.available.names[0]
-  cidr_block = "10.0.1.0/24"
+  cidr_block = local.private-cidr
   vpc_id = aws_vpc.vpc.id
   tags = {
-    Name = "${var.name}-private"
+    Name = "${local.name}-private"
   }
 }
 
@@ -50,7 +50,7 @@ resource "aws_eip" "nat-gateway" {
   depends_on = [aws_internet_gateway.internet-gateway]  // See resource documentation.
   vpc = true
   tags = {
-    Name = var.name
+    Name = "${local.name}-nat-gateway"
   }
 }
 
@@ -58,14 +58,14 @@ resource "aws_nat_gateway" "gateway" {
   allocation_id = aws_eip.nat-gateway.id
   subnet_id = aws_subnet.public.id
   tags = {
-    Name = var.name
+    Name = local.name
   }
 }
 
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.vpc.id
   tags = {
-    Name = "${var.name}-public"
+    Name = "${local.name}-public"
   }
 }
 
@@ -83,7 +83,7 @@ resource "aws_route" "public" {
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.vpc.id
   tags = {
-    Name = "${var.name}-private"
+    Name = "${local.name}-private"
   }
 }
 
