@@ -1,6 +1,10 @@
 resource "aws_s3_bucket" "kube-data" {
   bucket = "albersm.${local.name}.kube-data"
   acl = "private"
+  provisioner "local-exec" {
+    when = destroy
+    command = "aws s3 rm --recursive s3://${self.bucket}"
+  }
 }
 
 resource "aws_security_group" "kube-master" {
@@ -100,9 +104,14 @@ resource "aws_instance" "master-node" {
   ami = local.ami
   instance_type = "t3a.large"
   user_data = templatefile("scripts/initKubernetesMaster.sh", {
+    aptUpgrade = file("scripts/libs/aptUpgrade.sh"),
+    installDocker = file("scripts/libs/installDocker.sh"),
+    installKubernetes = templatefile("scripts/libs/installKubernetes.sh", {
+      kubernetesVersion = local.kubernetes-version}),
     s3BucketName = aws_s3_bucket.kube-data.bucket,
-    kubernetesVersion = local.kubernetes-version,
-    publicIp = aws_eip.master-node.public_ip})
+    joinClusterFile = local.joinClusterFile,
+    publicIp = aws_eip.master-node.public_ip
+  })
   subnet_id = aws_subnet.public.id
   security_groups = [aws_security_group.kube-master.id]
   key_name = local.key-name
@@ -118,5 +127,62 @@ resource "aws_eip_association" "master-node" {
   allocation_id = aws_eip.master-node.id
 }
 
-# TODO: security group for workers
-# TODO: worker nodes
+resource "aws_security_group" "kube-worker" {
+  name = "${local.name}-kube-worker"
+  description = "For kubernetes worker nodes"
+  vpc_id = aws_vpc.vpc.id
+
+  ingress {
+    from_port = 22
+    protocol = "tcp"
+    to_port = 22
+    description = "ssh"
+    security_groups = [aws_security_group.bastion.id]
+  }
+  ingress {
+    cidr_blocks = [local.public-cidr, local.private-cidr]
+    from_port = 10250
+    protocol = "tcp"
+    to_port = 10250
+    description = "kubelet"
+  }
+  ingress {
+    cidr_blocks = [local.public-cidr, local.private-cidr]
+    from_port = 30000
+    protocol = "tcp"
+    to_port = 32767
+    description = "NodePorts"
+  }
+
+  // Allow outbound traffic
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "worker-node" {
+  count = local.number-workers
+  depends_on = [aws_instance.master-node]
+
+  ami = local.ami
+  instance_type = "t3a.large"
+  user_data = templatefile("scripts/initKubernetesWorker.sh", {
+    aptUpgrade = file("scripts/libs/aptUpgrade.sh"),
+    installDocker = file("scripts/libs/installDocker.sh"),
+    installKubernetes = templatefile("scripts/libs/installKubernetes.sh", {
+      kubernetesVersion = local.kubernetes-version}),
+    s3BucketName = aws_s3_bucket.kube-data.bucket,
+    joinClusterFile = local.joinClusterFile
+  })
+  subnet_id = aws_subnet.private.id
+  security_groups = [aws_security_group.kube-worker.id]
+  key_name = local.key-name
+  iam_instance_profile = aws_iam_instance_profile.allow-all.id
+
+  tags = {
+    Name = "kubernetes-worker"
+  }
+}
