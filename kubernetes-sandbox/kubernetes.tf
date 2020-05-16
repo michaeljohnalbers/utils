@@ -28,6 +28,13 @@ resource "aws_security_group" "kube-master" {
   }
   ingress {
     cidr_blocks = [local.public-cidr, local.private-cidr]
+    from_port = 179
+    protocol = "tcp"
+    to_port = 179
+    description = "Calico BGP"
+  }
+  ingress {
+    cidr_blocks = [local.public-cidr, local.private-cidr]
     from_port = 2379
     protocol = "tcp"
     to_port = 2380
@@ -140,6 +147,13 @@ resource "aws_security_group" "kube-worker" {
     to_port = 22
     description = "ssh"
     security_groups = [aws_security_group.bastion.id]
+  }
+  ingress {
+    cidr_blocks = [local.public-cidr, local.private-cidr]
+    from_port = 179
+    protocol = "tcp"
+    to_port = 179
+    description = "Calico BGP"
   }
   ingress {
     cidr_blocks = [local.public-cidr, local.private-cidr]
