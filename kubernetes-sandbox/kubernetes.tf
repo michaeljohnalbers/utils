@@ -104,13 +104,14 @@ resource "aws_instance" "master-node" {
   ami = local.ami
   instance_type = "t3a.large"
   user_data = templatefile("scripts/initKubernetesMaster.sh", {
-    aptUpgrade = file("scripts/libs/aptUpgrade.sh"),
+    machinePrep = file("scripts/libs/machinePrep.sh"),
     installDocker = file("scripts/libs/installDocker.sh"),
     installKubernetes = templatefile("scripts/libs/installKubernetes.sh", {
       kubernetesVersion = local.kubernetes-version}),
-    s3BucketName = aws_s3_bucket.kube-data.bucket,
-    joinClusterFile = local.joinClusterFile,
+    clusterName = local.name,
+    joinConfigFile = local.joinConfigFile,
     publicIp = aws_eip.master-node.public_ip
+    s3BucketName = aws_s3_bucket.kube-data.bucket
   })
   subnet_id = aws_subnet.public.id
   security_groups = [aws_security_group.kube-master.id]
@@ -119,6 +120,7 @@ resource "aws_instance" "master-node" {
 
   tags = {
     Name = "kubernetes-master"
+    "kubernetes.io/cluster/${local.name}" = "owned"
   }
 }
 
@@ -170,12 +172,12 @@ resource "aws_instance" "worker-node" {
   ami = local.ami
   instance_type = "t3a.large"
   user_data = templatefile("scripts/initKubernetesWorker.sh", {
-    aptUpgrade = file("scripts/libs/aptUpgrade.sh"),
+    machinePrep = file("scripts/libs/machinePrep.sh"),
     installDocker = file("scripts/libs/installDocker.sh"),
     installKubernetes = templatefile("scripts/libs/installKubernetes.sh", {
       kubernetesVersion = local.kubernetes-version}),
     s3BucketName = aws_s3_bucket.kube-data.bucket,
-    joinClusterFile = local.joinClusterFile
+    joinConfigFile = local.joinConfigFile
   })
   subnet_id = aws_subnet.private.id
   security_groups = [aws_security_group.kube-worker.id]
@@ -184,5 +186,6 @@ resource "aws_instance" "worker-node" {
 
   tags = {
     Name = "kubernetes-worker"
+    "kubernetes.io/cluster/${local.name}" = "owned"
   }
 }

@@ -1,6 +1,6 @@
 locals {
   ami = "ami-003634241a8fcdec0" # Ubuntu 18.04 public image
-  joinClusterFile = "joinCluster.sh"
+  joinConfigFile = "joinConfig.yaml"
   key-name = "MichaelKeyPair"
   kubernetes-version = "1.18.2-00"
   name = "kubernetes-sandbox"
